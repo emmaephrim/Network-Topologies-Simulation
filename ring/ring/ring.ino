@@ -16,7 +16,9 @@ const int pcNodes[4] = {0, 11, 22, 33};
 int sourcePC = 0; 
 int currentBrightness = 100;    // Starting brightness (10 to 255)
 bool backgroundOn = false;      // Tracks if the background is currently active
-CRGB bgColor = CRGB(15, 15, 15); // A dim white/gray so the blue packet still pops
+
+// Updated to a deep "Cyber Purple" - adjust the (Red, Green, Blue) values to your liking!
+CRGB bgColor = CRGB(8, 0, 15); 
 CRGB packetColor = CRGB::Blue;
 
 void setup() {
@@ -56,14 +58,19 @@ void loop() {
         FastLED.show();
       } else {
         int destPC = action;
-        if (sourcePC != destPC) {
-          simulateRing(sourcePC, destPC);
+        int currentSource = sourcePC; // Save the source temporarily
+        
+        // --- THE FIX ---
+        // Clear the state immediately before animating so it doesn't redraw at the end
+        sourcePC = 0; 
+        
+        if (currentSource != destPC) {
+          simulateRing(currentSource, destPC);
         } else {
           Serial.println("Error: Source and Destination cannot be the same.");
           errorBeep();
           updateBackground(); // Reset the display
         }
-        sourcePC = 0; 
       }
       delay(300); // Debounce
     }
@@ -140,9 +147,9 @@ void simulateRing(int src, int dest) {
 // --- HELPER FUNCTIONS ---
 void updateBackground() {
   if (backgroundOn) {
-    fill_solid(leds, NUM_LEDS, bgColor); // Light up all pixels dim white
+    fill_solid(leds, NUM_LEDS, bgColor); 
   } else {
-    FastLED.clear(); // Turn all pixels off
+    FastLED.clear(); 
   }
   
   // If a source PC is currently selected, keep it lit yellow
@@ -174,11 +181,10 @@ int getActionFromIR(int command) {
     case 71: return 3; 
     case 68: return 4; 
     
-    // ⚠️ MAP THESE NEW BUTTONS ⚠️
-    // Check your Serial Monitor and replace 100, 200, and 300
-    case 24: return 5; // Replace 100 with your UP arrow / + button code
-    case 82: return 6; // Replace 200 with your DOWN arrow / - button code
-    case 25: return 7; // Replace 300 with an unused button (like OK or PLAY) to toggle background
+    // Brightness and Background Controls
+    case 24: return 5; 
+    case 82: return 6; 
+    case 25: return 7; 
     
     default: return -1; 
   }
