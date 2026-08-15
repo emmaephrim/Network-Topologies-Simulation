@@ -18,8 +18,8 @@ int currentBrightness = 100;    // Starting brightness (10 to 255)
 bool backgroundOn = false;      // Tracks if the background is currently active
 
 // Updated to a deep "Cyber Purple" - adjust the (Red, Green, Blue) values to your liking!
-CRGB bgColor = CRGB(8, 0, 15); 
-CRGB packetColor = CRGB::Blue;
+CRGB bgColor = CRGB(15, 6, 0);     // Dim Amber/Copper
+CRGB packetColor = CRGB::Blue;     // Classic Blue packet // Pure White packet // Bright Orange packet
 
 void setup() {
   Serial.begin(9600);
