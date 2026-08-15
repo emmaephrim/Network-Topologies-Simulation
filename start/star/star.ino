@@ -5,24 +5,25 @@
 #define LED_PIN     6       
 #define IR_PIN      2       
 #define BUZZER_PIN  8       
-#define NUM_LEDS    61      // Updated to 61 total pixels based on your diagram
+#define NUM_LEDS    61      
 
 CRGB leds[NUM_LEDS];
 
 // --- STAR TOPOLOGY MAPPING ---
-// Based on diagram: 1-16 (PC1), 17-31 (PC2), 46-32 (PC3), 47-61 (PC4)
-// Remember: C++ arrays are 0-indexed (subtract 1 from diagram numbers)
-const int pcNodes[4]  = {0,  30, 45, 60}; // The outer tips (where the PCs sit)
-const int hubNodes[4] = {15, 16, 31, 46}; // The inner tips (where the router sits)
+// PC1 (1-16):   Outer=1,  Inner=16  -> indices 0  and 15
+// PC2 (17-31):  Outer=31, Inner=17  -> indices 30 and 16
+// PC3 (32-46):  Outer=32, Inner=46  -> indices 31 and 45  <-- FIXED DIRECTION
+// PC4 (47-61):  Outer=61, Inner=47  -> indices 60 and 46
+const int pcNodes[4]  = {0, 30, 31, 60}; 
+const int hubNodes[4] = {15, 16, 45, 46}; 
 
 // --- STATE VARIABLES ---
 int sourcePC = 0; 
 int currentBrightness = 100;    
 bool backgroundOn = false;      
 
-// High-contrast options chosen for visibility
 CRGB bgColor = CRGB(15, 6, 0);     // Dim Amber/Copper Background
-CRGB packetColor = CRGB::White;    // Pure White packet for maximum contrast
+CRGB packetColor = CRGB::White;    // Pure White packet 
 
 void setup() {
   Serial.begin(9600);
@@ -63,7 +64,7 @@ void loop() {
         int destPC = action;
         int currentSource = sourcePC; 
         
-        sourcePC = 0; // Clear state before animating
+        sourcePC = 0; 
         
         if (currentSource != destPC) {
           simulateStar(currentSource, destPC);
@@ -73,7 +74,7 @@ void loop() {
           updateBackground(); 
         }
       }
-      delay(300); // Debounce
+      delay(300); 
     }
     
     // Handle Brightness UP (5)
@@ -107,7 +108,7 @@ void loop() {
 
 // --- STAR TOPOLOGY SIMULATION LOGIC ---
 void simulateStar(int src, int dest) {
-  updateBackground(); // Ensure clean slate
+  updateBackground(); 
   
   int srcIdx = src - 1;
   int destIdx = dest - 1;
@@ -120,7 +121,7 @@ void simulateStar(int src, int dest) {
     leds[hubNodes[i]] = CRGB::White;
   }
   FastLED.show();
-  delay(150); // Brief pause at the router
+  delay(150); 
   
   // Restore center pixels to background before moving on
   for(int i = 0; i < 4; i++) {
@@ -142,7 +143,6 @@ void simulateStar(int src, int dest) {
 
 // Moves the packet bi-directionally along any branch
 void animateSegment(int startIdx, int endIdx) {
-  // Determine if we need to count UP or DOWN the strip
   int step = (startIdx < endIdx) ? 1 : -1;
   int currentIdx = startIdx;
   
@@ -150,7 +150,7 @@ void animateSegment(int startIdx, int endIdx) {
     leds[currentIdx] = packetColor; 
     FastLED.show();
     
-    delay(100); // Speed of the packet
+    delay(100); 
     
     if (backgroundOn) {
       leds[currentIdx] = bgColor;
