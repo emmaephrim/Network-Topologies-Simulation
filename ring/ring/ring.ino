@@ -2,161 +2,184 @@
 #include <IRremote.hpp>
 
 // --- HARDWARE SETTINGS ---
-#define LED_PIN     6       // Pin connected to the WS2812B Data In
-#define IR_PIN      2       // Pin connected to the IR Receiver
-#define BUZZER_PIN  8       // Pin connected to the Active Buzzer
+#define LED_PIN     6       
+#define IR_PIN      2       
+#define BUZZER_PIN  8       
 #define NUM_LEDS    45
 
 CRGB leds[NUM_LEDS];
 
 // Map PC numbers (1, 2, 3, 4) to their starting pixel on the strip.
-// Adjusted to match the ~11 pixel gaps shown in your diagram.
 const int pcNodes[4] = {0, 11, 22, 33}; 
 
 // --- STATE VARIABLES ---
-int sourcePC = 0; // Stores the first key press (0 means nothing pressed yet)
+int sourcePC = 0; 
+int currentBrightness = 100;    // Starting brightness (10 to 255)
+bool backgroundOn = false;      // Tracks if the background is currently active
+CRGB bgColor = CRGB(15, 15, 15); // A dim white/gray so the blue packet still pops
+CRGB packetColor = CRGB::Blue;
 
 void setup() {
   Serial.begin(9600);
   
-  // Initialize Buzzer
   pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW); // Ensure it's off at startup
+  digitalWrite(BUZZER_PIN, LOW); 
   
-  // Initialize LEDs
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.clear();
-  FastLED.show();
+  FastLED.setBrightness(currentBrightness); // Apply initial brightness
+  updateBackground();
   
-  // Initialize IR Receiver
   IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
   
   Serial.println("System Ready.");
-  Serial.println("Enter Source PC (1-4) followed by Destination PC (1-4).");
 }
 
 void loop() {
   if (IrReceiver.decode()) {
     
-    // Ignore automatic repeat signals sent by holding the button down
     if (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) {
       IrReceiver.resume();
       return;
     }
 
     int command = IrReceiver.decodedIRData.command;
-    
-    // Print the received command to the serial monitor so you can map your remote
     Serial.print("IR Command Received: ");
     Serial.println(command);
     
-    int pressedNumber = getNumberFromIR(command);
+    int action = getActionFromIR(command);
 
-    if (pressedNumber >= 1 && pressedNumber <= 4) {
+    // Handle PC Selection (1-4)
+    if (action >= 1 && action <= 4) {
       if (sourcePC == 0) {
-        // First button press: Set the Source
-        sourcePC = pressedNumber;
-        Serial.print("Source PC selected: "); 
-        Serial.println(sourcePC);
-        
-        // Light up the source PC yellow to indicate it's waiting for a destination
+        sourcePC = action;
         leds[pcNodes[sourcePC - 1]] = CRGB::Yellow;
         FastLED.show();
-        
       } else {
-        // Second button press: Set the Destination and animate
-        int destPC = pressedNumber;
-        Serial.print("Destination PC selected: "); 
-        Serial.println(destPC);
-        
+        int destPC = action;
         if (sourcePC != destPC) {
           simulateRing(sourcePC, destPC);
         } else {
           Serial.println("Error: Source and Destination cannot be the same.");
-          
-          // Error sound: long buzz
-          digitalWrite(BUZZER_PIN, HIGH);
-          delay(500);
-          digitalWrite(BUZZER_PIN, LOW);
-          
-          FastLED.clear();
-          FastLED.show();
+          errorBeep();
+          updateBackground(); // Reset the display
         }
-        
-        // Reset for the next packet simulation
         sourcePC = 0; 
       }
-      
-      // Add a debounce delay to give you time to lift your finger 
-      // before it accepts the next command
-      delay(300); 
+      delay(300); // Debounce
     }
     
-    IrReceiver.resume(); // Ready for the next button press
+    // Handle Brightness UP (5)
+    else if (action == 5) {
+      currentBrightness += 25;
+      if (currentBrightness > 255) currentBrightness = 255;
+      FastLED.setBrightness(currentBrightness);
+      FastLED.show();
+      Serial.print("Brightness: "); Serial.println(currentBrightness);
+      delay(150);
+    }
+    
+    // Handle Brightness DOWN (6)
+    else if (action == 6) {
+      currentBrightness -= 25;
+      if (currentBrightness < 10) currentBrightness = 10;
+      FastLED.setBrightness(currentBrightness);
+      FastLED.show();
+      Serial.print("Brightness: "); Serial.println(currentBrightness);
+      delay(150);
+    }
+    
+    // Handle Background Toggle (7)
+    else if (action == 7) {
+      backgroundOn = !backgroundOn; // Flip the state
+      updateBackground();
+      Serial.print("Background turned "); 
+      Serial.println(backgroundOn ? "ON" : "OFF");
+      delay(300);
+    }
+    
+    IrReceiver.resume(); 
   }
 }
 
 // --- NETWORK SIMULATION LOGIC ---
 void simulateRing(int src, int dest) {
-  // Convert PC numbers (1-4) to their actual array indexes (0-3)
   int startIdx = pcNodes[src - 1];
   int endIdx = pcNodes[dest - 1];
-  
   int currentIdx = startIdx;
-  FastLED.clear();
   
-  // Loop until the packet reaches the destination node
+  updateBackground(); // Ensure clean slate before animation
+  
   while (currentIdx != endIdx) {
-    leds[currentIdx] = CRGB::Blue; // Packet color
+    leds[currentIdx] = packetColor; 
     FastLED.show();
     
-    delay(200); // Speed of the packet flowing
+    delay(150); // Slightly faster animation looks better with a background
     
-    leds[currentIdx] = CRGB::Black; // Turn off the trail behind it
+    // Revert the pixel back to the background state instead of turning it black
+    if (backgroundOn) {
+      leds[currentIdx] = bgColor;
+    } else {
+      leds[currentIdx] = CRGB::Black;
+    }
     
     currentIdx++; 
-    
-    // RING LOGIC: If we reach the end of the 45 pixels, wrap back to 0
     if (currentIdx >= NUM_LEDS) {
       currentIdx = 0; 
     }
   }
   
-  // Success! Blink the destination PC green
+  // Destination reached
   leds[endIdx] = CRGB::Green;
   FastLED.show();
+  successBeep();
   
-  // Success sound: Two quick beeps
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
-  digitalWrite(BUZZER_PIN, LOW);
-  delay(100);
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
-  digitalWrite(BUZZER_PIN, LOW);
+  delay(1200); 
+  updateBackground(); // Clear the green success node
+}
 
-  // Replace the digitalWrite success sound with this:
-  // tone(BUZZER_PIN, 1000); // Play a 1000Hz tone
-  // delay(100);
-  // noTone(BUZZER_PIN);     // Stop the tone
-  // delay(100);
-  // tone(BUZZER_PIN, 1000);
-  // delay(100);
-  // noTone(BUZZER_PIN);
+// --- HELPER FUNCTIONS ---
+void updateBackground() {
+  if (backgroundOn) {
+    fill_solid(leds, NUM_LEDS, bgColor); // Light up all pixels dim white
+  } else {
+    FastLED.clear(); // Turn all pixels off
+  }
   
-  delay(1200); // Remaining delay before clearing
+  // If a source PC is currently selected, keep it lit yellow
+  if (sourcePC != 0) {
+    leds[pcNodes[sourcePC - 1]] = CRGB::Yellow;
+  }
   
-  FastLED.clear();
   FastLED.show();
 }
 
+void successBeep() {
+  digitalWrite(BUZZER_PIN, HIGH); delay(100);
+  digitalWrite(BUZZER_PIN, LOW);  delay(100);
+  digitalWrite(BUZZER_PIN, HIGH); delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void errorBeep() {
+  digitalWrite(BUZZER_PIN, HIGH); delay(500);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
 // --- REMOTE CONTROL MAPPING ---
-int getNumberFromIR(int command) {
+int getActionFromIR(int command) {
   switch(command) {
+    // PCs
     case 69: return 1; 
     case 70: return 2; 
     case 71: return 3; 
     case 68: return 4; 
-    default: return -1; // Unrecognized button
+    
+    // ⚠️ MAP THESE NEW BUTTONS ⚠️
+    // Check your Serial Monitor and replace 100, 200, and 300
+    case 24: return 5; // Replace 100 with your UP arrow / + button code
+    case 82: return 6; // Replace 200 with your DOWN arrow / - button code
+    case 25: return 7; // Replace 300 with an unused button (like OK or PLAY) to toggle background
+    
+    default: return -1; 
   }
 }
