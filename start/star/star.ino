@@ -12,7 +12,7 @@ CRGB leds[NUM_LEDS];
 // --- STAR TOPOLOGY MAPPING ---
 // PC1 (1-16):   Outer=1,  Inner=16  -> indices 0  and 15
 // PC2 (17-31):  Outer=31, Inner=17  -> indices 30 and 16
-// PC3 (32-46):  Outer=32, Inner=46  -> indices 31 and 45  <-- FIXED DIRECTION
+// PC3 (32-46):  Outer=32, Inner=46  -> indices 31 and 45
 // PC4 (47-61):  Outer=61, Inner=47  -> indices 60 and 46
 const int pcNodes[4]  = {0, 30, 31, 60}; 
 const int hubNodes[4] = {15, 16, 45, 46}; 
@@ -22,8 +22,9 @@ int sourcePC = 0;
 int currentBrightness = 100;    
 bool backgroundOn = false;      
 
+// Colors updated to match the Ring Topology
 CRGB bgColor = CRGB(15, 6, 0);     // Dim Amber/Copper Background
-CRGB packetColor = CRGB::White;    // Pure White packet 
+CRGB packetColor = CRGB::Blue;     // Classic Blue packet 
 
 void setup() {
   Serial.begin(9600);
