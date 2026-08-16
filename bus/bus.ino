@@ -5,7 +5,7 @@
 #define LED_PIN     6       
 #define IR_PIN      2       
 #define BUZZER_PIN  8       
-#define NUM_LEDS    83      // Updated to 83 to match your highest pixel (69-83)
+#define NUM_LEDS    83      
 
 CRGB leds[NUM_LEDS];
 
@@ -16,17 +16,13 @@ CRGB leds[NUM_LEDS];
 // PC1 (3), PC2 (68), PC3 (69), PC4 (53)
 const int pcNodes[4]  = {2, 67, 68, 52}; 
 
-// Junctions (Where the branches meet the central Hub)
+// Junctions (The physical end of each branch before it jumps to the bus)
 // PC1 (16), PC2 (54), PC3 (83), PC4 (41)
 const int pcJunctions[4] = {15, 53, 82, 40}; 
 
-// Which side of the hub is each PC on? (0 = Left, 1 = Right)
-// PC1 and PC3 are Left. PC2 and PC4 are Right.
-const int pcSide[4] = {0, 1, 0, 1}; 
-
-// The Central Hub (Backbone) indices
-const int hubLeft = 16;  // Diagram 17
-const int hubRight = 39; // Diagram 40
+// T-Connectors (The exact pixels on the main bus where data transfers)
+// PC1 & PC3 meet at Pixel 20 (Index 19). PC2 & PC4 meet at Pixel 34 (Index 33).
+const int tConnectors[4] = {19, 33, 19, 33}; 
 
 // --- STATE VARIABLES ---
 int sourcePC = 0; 
@@ -49,7 +45,7 @@ void setup() {
   
   IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
   
-  Serial.println("System Ready - Bus Topology");
+  Serial.println("System Ready - Bus Topology (T-Connector Update)");
 }
 
 void loop() {
@@ -125,21 +121,28 @@ void simulateBus(int src, int dest) {
   int srcIdx = src - 1;
   int destIdx = dest - 1;
   
-  // PHASE 1: Source PC up to its Junction
+  // PHASE 1: Source PC down to its branch Junction
   animateSegment(pcNodes[srcIdx], pcJunctions[srcIdx]);
   
-  // PHASE 2: Traverse the Backbone (if crossing sides)
-  if (pcSide[srcIdx] != pcSide[destIdx]) {
-    if (pcSide[srcIdx] == 0) {
-      // Traveling Left to Right
-      animateSegment(hubLeft, hubRight);
-    } else {
-      // Traveling Right to Left
-      animateSegment(hubRight, hubLeft);
-    }
+  // Optional Visual Effect: Flash the Source T-Connector white for a split second 
+  // to show the data packet hitting the main bus line
+  leds[tConnectors[srcIdx]] = CRGB::White;
+  FastLED.show();
+  delay(80);
+  leds[tConnectors[srcIdx]] = backgroundOn ? bgColor : CRGB::Black;
+  
+  // PHASE 2: Travel the Main Bus (Only if the T-Connectors are different)
+  if (tConnectors[srcIdx] != tConnectors[destIdx]) {
+    animateSegment(tConnectors[srcIdx], tConnectors[destIdx]);
+    
+    // Flash the Destination T-Connector
+    leds[tConnectors[destIdx]] = CRGB::White;
+    FastLED.show();
+    delay(80);
+    leds[tConnectors[destIdx]] = backgroundOn ? bgColor : CRGB::Black;
   }
   
-  // PHASE 3: Junction down to the Destination PC
+  // PHASE 3: Destination Junction to the Destination PC
   animateSegment(pcJunctions[destIdx], pcNodes[destIdx]);
   
   // Destination reached
