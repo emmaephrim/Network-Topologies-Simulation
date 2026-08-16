@@ -10,19 +10,20 @@
 CRGB leds[NUM_LEDS];
 
 // --- BUS TOPOLOGY MAPPING ---
-// Converting your 1-indexed diagram to 0-indexed C++ arrays
+// Converting your 1-indexed diagram to 0-indexed C++ arrays (Subtracting 1)
 
-// PC Nodes (Where the yellow/green indicators appear)
-// PC1 (3), PC2 (68), PC3 (69), PC4 (53)
-const int pcNodes[4]  = {2, 67, 68, 52}; 
+// 1. PC Nodes (The tips where the PCs sit: 3, 68, 69, 53)
+const int pcNodes[4]    = {2, 67, 68, 52}; 
 
-// Junctions (The physical end of each branch before it jumps to the bus)
-// PC1 (16), PC2 (54), PC3 (83), PC4 (41)
-const int pcJunctions[4] = {15, 53, 82, 40}; 
+// 2. Branch Bases (The last pixel of the branch before it hits the bus: 16, 54, 83, 41)
+const int branchBase[4] = {15, 53, 82, 40}; 
 
-// T-Connectors (The exact pixels on the main bus where data transfers)
-// PC1 & PC3 meet at Pixel 20 (Index 19). PC2 & PC4 meet at Pixel 34 (Index 33).
-const int tConnectors[4] = {19, 33, 19, 33}; 
+// 3. Bus Entry Points (The exact pixel ON THE BUS where the branch connects)
+// PC1 connects directly at 17
+// PC2 jumper wire connects at 34
+// PC3 jumper wire connects at 20
+// PC4 connects directly at 40
+const int busPoint[4]   = {16, 33, 19, 39}; 
 
 // --- STATE VARIABLES ---
 int sourcePC = 0; 
@@ -45,7 +46,7 @@ void setup() {
   
   IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
   
-  Serial.println("System Ready - Bus Topology (T-Connector Update)");
+  Serial.println("System Ready - Bus Topology (Continuous Flow Fixed)");
 }
 
 void loop() {
@@ -121,29 +122,28 @@ void simulateBus(int src, int dest) {
   int srcIdx = src - 1;
   int destIdx = dest - 1;
   
-  // PHASE 1: Source PC down to its branch Junction
-  animateSegment(pcNodes[srcIdx], pcJunctions[srcIdx]);
+  // PHASE 1: Source PC down to the base of its branch
+  animateSegment(pcNodes[srcIdx], branchBase[srcIdx]);
   
-  // Optional Visual Effect: Flash the Source T-Connector white for a split second 
-  // to show the data packet hitting the main bus line
-  leds[tConnectors[srcIdx]] = CRGB::White;
+  // Flash the exact point where it hits the Main Bus
+  leds[busPoint[srcIdx]] = CRGB::White;
   FastLED.show();
   delay(80);
-  leds[tConnectors[srcIdx]] = backgroundOn ? bgColor : CRGB::Black;
+  leds[busPoint[srcIdx]] = backgroundOn ? bgColor : CRGB::Black;
   
-  // PHASE 2: Travel the Main Bus (Only if the T-Connectors are different)
-  if (tConnectors[srcIdx] != tConnectors[destIdx]) {
-    animateSegment(tConnectors[srcIdx], tConnectors[destIdx]);
-    
-    // Flash the Destination T-Connector
-    leds[tConnectors[destIdx]] = CRGB::White;
-    FastLED.show();
-    delay(80);
-    leds[tConnectors[destIdx]] = backgroundOn ? bgColor : CRGB::Black;
+  // PHASE 2: Travel continuously along the Main Bus (No skipping!)
+  if (busPoint[srcIdx] != busPoint[destIdx]) {
+    animateSegment(busPoint[srcIdx], busPoint[destIdx]);
   }
   
-  // PHASE 3: Destination Junction to the Destination PC
-  animateSegment(pcJunctions[destIdx], pcNodes[destIdx]);
+  // Flash the exact point where it exits the Main Bus
+  leds[busPoint[destIdx]] = CRGB::White;
+  FastLED.show();
+  delay(80);
+  leds[busPoint[destIdx]] = backgroundOn ? bgColor : CRGB::Black;
+  
+  // PHASE 3: Base of the Destination branch up to the PC
+  animateSegment(branchBase[destIdx], pcNodes[destIdx]);
   
   // Destination reached
   leds[pcNodes[destIdx]] = CRGB::Green;
