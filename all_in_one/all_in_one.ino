@@ -85,7 +85,7 @@ void setup() {
   updateBackground();
   
   IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
-  Serial.println("System Ready - Master Controller (Interrupts Enabled)");
+  Serial.println("System Ready - Master Controller (Interrupts Fixed)");
 }
 
 void loop() {
@@ -251,34 +251,40 @@ bool checkInterrupt(int ms) {
   while (millis() - start < (unsigned long)ms) {
     if (IrReceiver.decode()) {
       
-      int cmd = IrReceiver.decodedIRData.command;
-      
-      // 1. HARD RESET (Star Key)
-      if (cmd == 22) { 
-        isResetTriggered = true;
+      // THE FIX: Ignore button hold-downs to prevent rapid toggle glitching
+      if (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) {
         IrReceiver.resume();
-        return true; 
-      }
-      
-      // 2. TOGGLE BUZZER MID-ANIMATION (# Key)
-      else if (cmd == 13 && randomMode) { 
-        demoBuzzerOn = !demoBuzzerOn;
-        Serial.print("Demo Mode Buzzer (Interrupt): "); Serial.println(demoBuzzerOn ? "ON" : "OFF");
-        if (demoBuzzerOn) {
+      } else {
+        
+        int cmd = IrReceiver.decodedIRData.command;
+        
+        // 1. HARD RESET (Star Key)
+        if (cmd == 22) { 
+          isResetTriggered = true;
+          IrReceiver.resume();
+          return true; 
+        }
+        
+        // 2. TOGGLE BUZZER MID-ANIMATION (# Key)
+        else if (cmd == 13 && randomMode) { 
+          demoBuzzerOn = !demoBuzzerOn;
+          Serial.print("Demo Mode Buzzer (Interrupt): "); Serial.println(demoBuzzerOn ? "ON" : "OFF");
+          if (demoBuzzerOn) {
+            digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
+          }
+        }
+        
+        // 3. CANCEL DEMO MODE MID-ANIMATION ('5' Key)
+        else if (cmd == 64 && randomMode) {
+          randomMode = false;
+          demoBuzzerOn = false;
+          Serial.println("Random Demo Mode: OFF (Interrupt)");
           digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
         }
+        
+        // Resume listening and throw away anything else to prevent glitches
+        IrReceiver.resume(); 
       }
-      
-      // 3. CANCEL DEMO MODE MID-ANIMATION ('5' Key)
-      else if (cmd == 64 && randomMode) {
-        randomMode = false;
-        demoBuzzerOn = false;
-        Serial.println("Random Demo Mode: OFF (Interrupt)");
-        digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
-      }
-      
-      // Resume listening and throw away anything else to prevent glitches
-      IrReceiver.resume(); 
     }
     delay(5);
   }
