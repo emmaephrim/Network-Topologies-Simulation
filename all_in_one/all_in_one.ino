@@ -63,7 +63,7 @@ int currentBrightness = 100;
 bool backgroundOn = false;      
 bool randomMode = false;        
 bool demoBuzzerOn = false;      
-volatile bool isResetTriggered = false; // Flag to instantly abort animations
+volatile bool isResetTriggered = false; 
 
 CRGB bgColor = CRGB(15, 6, 0);     
 CRGB packetColor = CRGB::Blue;     
@@ -95,7 +95,7 @@ void loop() {
     executeReset();
   }
 
-  // 1. Process incoming IR commands
+  // 1. Process incoming IR commands in the main loop
   if (IrReceiver.decode()) {
     
     if (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) {
@@ -245,18 +245,39 @@ void loop() {
 //          INTERRUPT & RESET LOGIC
 // ==========================================
 
-// Replaces standard delay(). Polls for the Star key (22) during animations.
-// Returns true if a reset was requested, forcing animations to abort.
+// Checks for specific override commands while animations are blocking the main loop
 bool checkInterrupt(int ms) {
   unsigned long start = millis();
   while (millis() - start < (unsigned long)ms) {
     if (IrReceiver.decode()) {
-      if (IrReceiver.decodedIRData.command == 22) { // Star Key Detected
+      
+      int cmd = IrReceiver.decodedIRData.command;
+      
+      // 1. HARD RESET (Star Key)
+      if (cmd == 22) { 
         isResetTriggered = true;
         IrReceiver.resume();
         return true; 
       }
-      // Swallow other random button presses during animations to prevent glitches
+      
+      // 2. TOGGLE BUZZER MID-ANIMATION (# Key)
+      else if (cmd == 13 && randomMode) { 
+        demoBuzzerOn = !demoBuzzerOn;
+        Serial.print("Demo Mode Buzzer (Interrupt): "); Serial.println(demoBuzzerOn ? "ON" : "OFF");
+        if (demoBuzzerOn) {
+          digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
+        }
+      }
+      
+      // 3. CANCEL DEMO MODE MID-ANIMATION ('5' Key)
+      else if (cmd == 64 && randomMode) {
+        randomMode = false;
+        demoBuzzerOn = false;
+        Serial.println("Random Demo Mode: OFF (Interrupt)");
+        digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
+      }
+      
+      // Resume listening and throw away anything else to prevent glitches
       IrReceiver.resume(); 
     }
     delay(5);
