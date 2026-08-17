@@ -85,7 +85,7 @@ void setup() {
   updateBackground();
   
   IrReceiver.begin(IR_PIN, ENABLE_LED_FEEDBACK);
-  Serial.println("System Ready - Master Controller (Interrupts Fixed)");
+  Serial.println("System Ready - Master Controller (Background Toggle Fixed)");
 }
 
 void loop() {
@@ -251,7 +251,7 @@ bool checkInterrupt(int ms) {
   while (millis() - start < (unsigned long)ms) {
     if (IrReceiver.decode()) {
       
-      // THE FIX: Ignore button hold-downs to prevent rapid toggle glitching
+      // Ignore button hold-downs to prevent rapid toggle glitching
       if (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) {
         IrReceiver.resume();
       } else {
@@ -280,6 +280,14 @@ bool checkInterrupt(int ms) {
           demoBuzzerOn = false;
           Serial.println("Random Demo Mode: OFF (Interrupt)");
           digitalWrite(BUZZER_PIN, HIGH); delay(50); digitalWrite(BUZZER_PIN, LOW);
+        }
+        
+        // 4. TOGGLE BACKGROUND MID-ANIMATION ('0' Key)
+        else if (cmd == 25) {
+          backgroundOn = !backgroundOn;
+          Serial.print("Background (Interrupt): "); Serial.println(backgroundOn ? "ON" : "OFF");
+          updateBackground(); 
+          // The loop continues, and the current packet will redraw over the new background on the next frame
         }
         
         // Resume listening and throw away anything else to prevent glitches
@@ -493,7 +501,7 @@ int getActionFromIR(int command) {
     
     case 24: return 5; 
     case 82: return 6; 
-    case 25: return 7; 
+    case 25: return 7;  // '0' Key -> Background Toggle
     case 28: return 8;  // OK Button
     
     case 64: return 9;  // '5' Key -> Random Demo Mode Toggle
